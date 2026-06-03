@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { hashPassword, generateToken } from '@/lib/auth';
 import { isValidEmail, isValidPassword } from '@/lib/utils';
+import { generateToken as generateEmailToken, hashToken, sendVerificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
+    // Generate email verification token
+    const emailToken = generateEmailToken();
+    const hashedEmailToken = hashToken(emailToken);
+    const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -52,36 +58,31 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         firstName: firstName || null,
         lastName: lastName || null,
+        emailVerificationToken: hashedEmailToken,
+        emailVerificationExpires: emailTokenExpires,
       },
     });
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, emailToken, firstName);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // Don't fail registration, but log the error
+    }
 
-    // Create response with Set-Cookie header
-    const response = NextResponse.json(
+    return NextResponse.json(
       {
-        message: 'User registered successfully',
+        message: 'User registered successfully. Please check your email to verify your account.',
         user: {
           id: user.id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
         },
-        token,
       },
       { status: 201 }
     );
-
-    // Set httpOnly cookie
-    response.cookies.set('authToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    return response;
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(

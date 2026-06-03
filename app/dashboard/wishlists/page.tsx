@@ -10,6 +10,7 @@ interface Wishlist {
   description?: string;
   occasion?: string;
   visibility: string;
+  slug?: string;
   items: any[];
   createdAt: string;
 }
@@ -72,6 +73,13 @@ export default function WishlistsPage() {
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete wishlist');
     }
+  };
+
+  const copyShareLink = (wishlist: Wishlist) => {
+    if (!wishlist.slug) return;
+    const link = `${window.location.origin}/wishlists/${wishlist.slug}`;
+    navigator.clipboard.writeText(link);
+    alert('Share link copied to clipboard!');
   };
 
   if (loading) {
@@ -205,6 +213,14 @@ export default function WishlistsPage() {
                 >
                   View
                 </Link>
+                {(wishlist.visibility === 'public' || wishlist.visibility === 'link-only') && (
+                  <button
+                    onClick={() => copyShareLink(wishlist)}
+                    className="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700"
+                  >
+                    Share
+                  </button>
+                )}
                 <button
                   onClick={() => handleDelete(wishlist.id)}
                   className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"

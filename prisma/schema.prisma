@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+
+  // Email verification
+  emailVerified       DateTime?
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+
+  // Password reset
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+
+  wishlists Wishlist[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Wishlist {
+  id          Int     @id @default(autoincrement())
+  userId      Int
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  occasion    String?
+  visibility  String  @default("private") // public, private, link-only
+  slug        String? @unique // for shareable links
+  
+  items       WishlistItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WishlistItem {
+  id          Int     @id @default(autoincrement())
+  wishlistId  Int
+  wishlist    Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  
+  productName String
+  productUrl  String?
+  description String?
+  price       Float?
+  priority    String  @default("medium") // low, medium, high
+  imageUrl    String?
+  
+  purchasedBy Int?
+  purchasedAt DateTime?
+  notes       String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
