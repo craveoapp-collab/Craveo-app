@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { hashPassword, generateToken } from '@/lib/auth';
 import { isValidEmail, isValidPassword } from '@/lib/utils';
-import { generateToken as generateEmailToken, hashToken, sendVerificationEmail } from '@/lib/email';
+import { generateSecureToken, hashToken } from '@/lib/token';
+import { sendVerificationEmail } from '@/lib/email';
+import { applyRateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitAllowed = await applyRateLimit(request);
+    if (!rateLimitAllowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email, password, firstName, lastName } = body;
 
@@ -46,10 +57,10 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Generate email verification token
-    const emailToken = generateEmailToken();
-    const hashedEmailToken = hashToken(emailToken);
-    const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    // Generate verification token
+    const verificationToken = generateSecureToken();
+    const verificationTokenHash = hashToken(verificationToken);
+    const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create user
     const user = await prisma.user.create({
@@ -58,22 +69,23 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         firstName: firstName || null,
         lastName: lastName || null,
-        emailVerificationToken: hashedEmailToken,
-        emailVerificationExpires: emailTokenExpires,
+        emailVerified: false,
+        emailVerificationToken: verificationTokenHash,
+        emailVerificationTokenExpiry: verificationTokenExpiry,
       },
     });
 
     // Send verification email
     try {
-      await sendVerificationEmail(email, emailToken, firstName);
-    } catch (emailError) {
-      console.error('Error sending verification email:', emailError);
-      // Don't fail registration, but log the error
+      await sendVerificationEmail(email, firstName || '', verificationToken);
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+      // Don't fail registration if email fails, but log it
     }
 
     return NextResponse.json(
       {
-        message: 'User registered successfully. Please check your email to verify your account.',
+        message: 'Account created successfully. Please check your email to verify your account.',
         user: {
           id: user.id,
           email: user.email,

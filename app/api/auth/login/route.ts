@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { comparePassword, generateToken } from '@/lib/auth';
 import { isValidEmail } from '@/lib/utils';
-import { hashToken } from '@/lib/email';
+import { applyRateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitAllowed = await applyRateLimit(request);
+    if (!rateLimitAllowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -39,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Check if email is verified
     if (!user.emailVerified) {
       return NextResponse.json(
-        { error: 'Please verify your email before logging in. Check your inbox for the verification link.' },
+        { error: 'Please verify your email before logging in' },
         { status: 403 }
       );
     }
@@ -56,6 +65,12 @@ export async function POST(request: NextRequest) {
 
     // Generate token
     const token = generateToken(user.id);
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
 
     // Create response with Set-Cookie header
     const response = NextResponse.json(

@@ -6,9 +6,9 @@ import axios from 'axios';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const response = await axios.post('/api/auth/forgot-password', { email });
-      setMessage(response.data.message);
+      setMessage('If an account exists with that email, you will receive a password reset link.');
       setEmail('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send reset email');
@@ -32,10 +32,10 @@ export default function ForgotPasswordPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Forgot Password
+            Forgot Password?
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your email to receive a password reset link
+            Enter your email and we'll send you a password reset link
           </p>
         </div>
 
@@ -64,10 +64,7 @@ export default function ForgotPasswordPage() {
               required
               placeholder="Email address"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError('');
-              }}
+              onChange={(e) => setEmail(e.target.value)}
               className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
           </div>

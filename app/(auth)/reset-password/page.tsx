@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 
 export default function ResetPasswordPage() {
@@ -10,60 +10,69 @@ export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [formData, setFormData] = useState({
+    password: '',
+    confirmPassword: '',
+  });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 text-center">
-          <p className="text-red-600">Invalid reset link</p>
-          <Link href="/auth/forgot-password" className="text-blue-600 hover:text-blue-700">
-            Request new reset link
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
-    setMessage('');
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-
     setLoading(true);
 
+    if (!token) {
+      setError('Invalid reset link');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await axios.post('/api/auth/reset-password', {
+      await axios.post('/api/auth/reset-password', {
         token,
-        password,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
       });
-      setMessage(response.data.message);
-      setPassword('');
-      setConfirmPassword('');
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        router.push('/auth/login');
-      }, 2000);
+      setSuccess(true);
+      setTimeout(() => router.push('/auth/login'), 2000);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to reset password');
     } finally {
       setLoading(false);
     }
   };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Invalid Reset Link</h1>
+          <p className="mt-2 text-gray-600">Please request a new password reset link.</p>
+          <Link href="/auth/forgot-password" className="mt-4 inline-block text-blue-600 hover:text-blue-700">
+            Request New Link
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Password Reset Successfully!</h1>
+          <p className="mt-2 text-gray-600">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -73,7 +82,7 @@ export default function ResetPasswordPage() {
             Reset Password
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your new password
+            Enter your new password below
           </p>
         </div>
 
@@ -84,30 +93,19 @@ export default function ResetPasswordPage() {
             </div>
           )}
 
-          {message && (
-            <div className="rounded-md bg-green-50 p-4">
-              <p className="text-sm font-medium text-green-800">{message}</p>
-              <p className="text-xs text-green-600 mt-2">Redirecting to login...</p>
-            </div>
-          )}
-
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="password" className="sr-only">
-                Password
+                New Password
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
-                autoComplete="new-password"
                 required
                 placeholder="New Password (min 8 characters)"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError('');
-                }}
+                value={formData.password}
+                onChange={handleChange}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               />
             </div>
@@ -119,14 +117,10 @@ export default function ResetPasswordPage() {
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
-                autoComplete="new-password"
                 required
                 placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  setError('');
-                }}
+                value={formData.confirmPassword}
+                onChange={handleChange}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               />
             </div>

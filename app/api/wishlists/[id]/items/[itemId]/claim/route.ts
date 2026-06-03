@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { verifyToken, extractTokenFromHeader } from '@/lib/auth';
+import { sendItemClaimedEmail } from '@/lib/email';
 
 interface RouteParams {
   params: {
@@ -44,7 +45,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const item = await prisma.wishlistItem.findUnique({
       where: { id: itemId },
       include: {
-        wishlist: true,
+        wishlist: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -70,6 +75,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         purchasedAt: new Date(),
       },
     });
+
+    // Get claimer info
+    const claimer = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    // Send email to wishlist owner
+    try {
+      if (item.wishlist.user.emailVerified) {
+        await sendItemClaimedEmail(
+          item.wishlist.user.email,
+          item.wishlist.user.firstName || '',
+          `${claimer?.firstName || 'Someone'} ${claimer?.lastName || ''}`,
+          item.productName,
+          item.wishlist.title
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send item claimed email:', error);
+    }
 
     return NextResponse.json(
       {

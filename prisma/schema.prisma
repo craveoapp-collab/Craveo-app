@@ -19,18 +19,20 @@ model User {
   avatarUrl String?
 
   // Email verification
-  emailVerified       DateTime?
-  emailVerificationToken String?
-  emailVerificationExpires DateTime?
+  emailVerified             Boolean   @default(false)
+  emailVerificationToken    String?   @unique
+  emailVerificationTokenExpiry DateTime?
 
   // Password reset
-  passwordResetToken String?
-  passwordResetExpires DateTime?
+  passwordResetToken    String?   @unique
+  passwordResetTokenExpiry DateTime?
+
+  // Profile
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   wishlists Wishlist[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Wishlist {
@@ -42,7 +44,7 @@ model Wishlist {
   description String?
   occasion    String?
   visibility  String  @default("private") // public, private, link-only
-  slug        String? @unique // for shareable links
+  slug        String  @unique // for shareable links
   
   items       WishlistItem[]
 

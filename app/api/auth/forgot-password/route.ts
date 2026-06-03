@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { generateSecureToken, hashToken } from '@/lib/token';
+import { sendPasswordResetEmail } from '@/lib/email';
 import { isValidEmail } from '@/lib/utils';
-import { generateToken as generateEmailToken, hashToken, sendPasswordResetEmail } from '@/lib/email';
+import { applyRateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitAllowed = await applyRateLimit(request);
+    if (!rateLimitAllowed) {
+      return NextResponse.json(
+        { error: 'Too many password reset attempts. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email } = body;
 
@@ -20,41 +31,37 @@ export async function POST(request: NextRequest) {
       where: { email },
     });
 
+    // Always return success for security (don't reveal if email exists)
     if (!user) {
-      // Don't reveal if user exists for security
       return NextResponse.json(
-        { message: 'If an account exists with this email, a password reset link has been sent.' },
+        { message: 'If an account exists with that email, you will receive a password reset link.' },
         { status: 200 }
       );
     }
 
-    // Generate password reset token
-    const resetToken = generateEmailToken();
-    const hashedResetToken = hashToken(resetToken);
-    const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    // Generate reset token
+    const resetToken = generateSecureToken();
+    const resetTokenHash = hashToken(resetToken);
+    const resetTokenExpiry = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
 
-    // Update user with reset token
+    // Store reset token
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: hashedResetToken,
-        passwordResetExpires: resetTokenExpires,
+        passwordResetToken: resetTokenHash,
+        passwordResetTokenExpiry: resetTokenExpiry,
       },
     });
 
-    // Send password reset email
+    // Send reset email
     try {
-      await sendPasswordResetEmail(email, resetToken, user.firstName);
-    } catch (emailError) {
-      console.error('Error sending password reset email:', emailError);
-      return NextResponse.json(
-        { error: 'Failed to send password reset email' },
-        { status: 500 }
-      );
+      await sendPasswordResetEmail(email, user.firstName || '', resetToken);
+    } catch (error) {
+      console.error('Failed to send password reset email:', error);
     }
 
     return NextResponse.json(
-      { message: 'If an account exists with this email, a password reset link has been sent.' },
+      { message: 'If an account exists with that email, you will receive a password reset link.' },
       { status: 200 }
     );
   } catch (error) {

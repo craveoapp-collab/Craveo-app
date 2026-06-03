@@ -1,94 +1,110 @@
-import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
-// Email configuration - update these with your email service
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-/**
- * Generate a random token for email verification or password reset
- */
-export function generateToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-/**
- * Hash a token (for secure storage in database)
- */
-export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-/**
- * Send verification email
- */
 export async function sendVerificationEmail(
   email: string,
-  token: string,
-  firstName?: string
-): Promise<void> {
-  const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/verify?token=${token}`;
+  firstName: string,
+  verificationToken: string
+) {
+  const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify-email?token=${verificationToken}`;
 
   const mailOptions = {
-    from: process.env.SMTP_FROM || 'noreply@craveo.com',
+    from: process.env.SMTP_FROM_EMAIL || 'noreply@craveo.app',
     to: email,
-    subject: 'Verify Your Craveo Email Address',
+    subject: 'Verify your Craveo email',
     html: `
       <h1>Welcome to Craveo!</h1>
       <p>Hi ${firstName || 'there'},</p>
-      <p>Thank you for signing up. Please verify your email address to get started.</p>
-      <p><a href="${verificationUrl}" style="display:inline-block; padding:10px 20px; background-color:#2563eb; color:white; text-decoration:none; border-radius:5px;">Verify Email</a></p>
-      <p>Or copy this link: ${verificationUrl}</p>
+      <p>Please verify your email address to complete your registration.</p>
+      <a href="${verificationLink}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        Verify Email
+      </a>
+      <p>Or copy and paste this link: ${verificationLink}</p>
       <p>This link expires in 24 hours.</p>
-      <p>Best regards,<br>The Craveo Team</p>
     `,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error('Failed to send verification email:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
 }
 
-/**
- * Send password reset email
- */
 export async function sendPasswordResetEmail(
   email: string,
-  token: string,
-  firstName?: string
-): Promise<void> {
-  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/reset?token=${token}`;
+  firstName: string,
+  resetToken: string
+) {
+  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`;
 
   const mailOptions = {
-    from: process.env.SMTP_FROM || 'noreply@craveo.com',
+    from: process.env.SMTP_FROM_EMAIL || 'noreply@craveo.app',
     to: email,
-    subject: 'Reset Your Craveo Password',
+    subject: 'Reset your Craveo password',
     html: `
       <h1>Password Reset Request</h1>
       <p>Hi ${firstName || 'there'},</p>
-      <p>We received a request to reset your Craveo password.</p>
-      <p><a href="${resetUrl}" style="display:inline-block; padding:10px 20px; background-color:#2563eb; color:white; text-decoration:none; border-radius:5px;">Reset Password</a></p>
-      <p>Or copy this link: ${resetUrl}</p>
+      <p>We received a request to reset your password. Click the link below to set a new password.</p>
+      <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        Reset Password
+      </a>
+      <p>Or copy and paste this link: ${resetLink}</p>
       <p>This link expires in 1 hour.</p>
-      <p>If you didn't request this, you can ignore this email.</p>
-      <p>Best regards,<br>The Craveo Team</p>
+      <p>If you didn't request a password reset, you can ignore this email.</p>
     `,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error('Failed to send password reset email:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendWishlistSharedEmail(
+  email: string,
+  senderName: string,
+  wishlistTitle: string,
+  wishlistLink: string
+) {
+  const mailOptions = {
+    from: process.env.SMTP_FROM_EMAIL || 'noreply@craveo.app',
+    to: email,
+    subject: `${senderName} shared a wishlist with you!`,
+    html: `
+      <h1>${senderName} shared a wishlist!</h1>
+      <p>Hi there,</p>
+      <p><strong>${senderName}</strong> shared their "${wishlistTitle}" wishlist with you on Craveo.</p>
+      <a href="${wishlistLink}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        View Wishlist
+      </a>
+      <p>Join Craveo to purchase items and claim them!</p>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendItemClaimedEmail(
+  email: string,
+  firstName: string,
+  claimerName: string,
+  itemName: string,
+  wishlistTitle: string
+) {
+  const mailOptions = {
+    from: process.env.SMTP_FROM_EMAIL || 'noreply@craveo.app',
+    to: email,
+    subject: `${claimerName} is getting you "${itemName}"!`,
+    html: `
+      <h1>Item Claimed!</h1>
+      <p>Hi ${firstName || 'there'},</p>
+      <p><strong>${claimerName}</strong> claimed "${itemName}" from your "${wishlistTitle}" wishlist!</p>
+      <p>You're all set - they'll be getting this for you soon.</p>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
 }
